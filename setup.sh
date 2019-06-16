@@ -113,12 +113,8 @@ eval "$(ssh-agent -s)"
 
 # Now that sshconfig is synced add key to ssh-agent and
 # store passphrase in keychain
-if [ $(uname) == "Darwin" ]
-then
-    ssh-add -K ~/.ssh/id_rsa
-else
-    ssh-add ~/.ssh/id_rsa
-fi
+ssh-add -K ~/.ssh/id_rsa
+
 # If you're using macOS Sierra 10.12.2 or later, you will need to modify your ~/.ssh/config file to automatically load keys into the ssh-agent and store passphrases in your keychain.
 
 if [ -e ~/.ssh/config ]
@@ -132,20 +128,14 @@ else
         ServerAliveCountMax 2
 		AddKeysToAgent yes
 		IdentityFile ~/.ssh/id_rsa
+        UseKeychain yes  # macOS only
 EOT
-
-if [ $(uname) == "Darwin" ] 
-then
-	echo "    UseKeychain yes  # macOS only" >> ~/.ssh/config
-fi
-
 
 ##############################
 # Install /etc/hosts/        #
 ##############################
 
 echo -e "127.0.0.1 facebook.com" >> /etc/hosts
-
 
 ##############################
 # Install via Brew           #
@@ -169,7 +159,6 @@ brew cask install \
     flux
 
 brew cleanup
-
 
 #############################################
 ### Fonts
@@ -296,22 +285,24 @@ defaults write com.apple.dock orientation -string right
 # defaults write com.apple.Preview ApplePersistenceIgnoreState YES
 # defaults write com.apple.Safari ApplePersistenceIgnoreState YES
 
-# Wallpaper
-curl http://images8.alphacoders.com/415/415094.jpg -o ~/Pictures/flyers.jpg
-osascript -e 'tell application "Finder" to set desktop picture to POSIX file "~/Pictures/flyers.jpg"'
+# TODO: set Wallpaper
+# curl http://images8.alphacoders.com/415/415094.jpg -o ~/Pictures/flyers.jpg
+# osascript -e 'tell application "Finder" to set desktop picture to POSIX file "~/Pictures/flyers.jpg"'
+
+
 ##################
 ### Text Editing / Keyboards
 ##################
 
 # Disable smart quotes and smart dashes
-defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
-defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
 
 # Disable auto-correct
-defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
+# defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 
 # Use function F1, F, etc keys as standard function keys
-defaults write NSGlobalDomain com.apple.keyboard.fnState -bool true
+# defaults write NSGlobalDomain com.apple.keyboard.fnState -bool true
 
 
 ###############################################################################
@@ -323,10 +314,10 @@ defaults write com.apple.screensaver askForPassword -int 1
 defaults write com.apple.screensaver askForPasswordDelay -int 0
 
 # Save screenshots to the desktop
-defaults write com.apple.screencapture location -string "$HOME/Desktop"
+# defaults write com.apple.screencapture location -string "$HOME/Desktop"
 
 # Save screenshots in PNG format (other options: BMP, GIF, JPG, PDF, TIFF)
-defaults write com.apple.screencapture type -string "png"
+defaults write com.apple.screencapture type -string "jpg"
 
 # Disable shadow in screenshots
 defaults write com.apple.screencapture disable-shadow -bool true
@@ -427,6 +418,9 @@ ln -s ~/.config/nvim/init.vim ~/code/dotfiles/neovim
 git config --global user.name "Luke Mergner"
 git config --global user.email lmergner@gmail.com
 git config --global core.editor nvim
+git config --global core.excludesfile "~/code/dotfiles/gitignore"
+git config --global core.st status
+git config --global alias.gl "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
 curl -fLo ~/.local/share/nvim/site/autoload/plug.vim --create-dirs \
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
@@ -436,7 +430,15 @@ nvim +PlugInstall +qall
 #############################################
 ### Add ssh-key to GitHub via api
 #############################################
-# TODO: move until after Dropbox update so we can use the API_TOKEN
+
+open /Applications/Dropbox.app
+echo "Is dropbox finished loading? (y/n) "
+read response
+if [ "$response" != "${response#[Yy]}" ]
+then
+    source ~/Dropbox/.config/tokens.sh  
+fi
+
 
 echo "Adding ssh-key to GitHub (via api)..."
 echo "Important! For this step, use a github personal token with the admin:public_key permission."
@@ -448,7 +450,13 @@ SSH_KEY=`cat ~/.ssh/id_rsa.pub`
 for ((i=0; i<retries; i++)); do
       read -p 'GitHub username: ' ghusername
       read -p 'Machine name: ' ghtitle
-      read -sp 'GitHub personal token: ' ghtoken
+
+
+    if [ -z ${DOTFILES_GITHUB_API_TOKEN} ]; then
+        read -sp 'GitHub personal token: ' ghtoken
+    else
+        ghtoken=${DOTFILES_GITHUB_API_TOKEN}
+    fi
 
       gh_status_code=$(curl -o /dev/null -s -w "%{http_code}\n" -u "$ghusername:$ghtoken" -d '{"title":"'$ghtitle'","key":"'"$SSH_KEY"'"}' 'https://api.github.com/user/keys')
 
@@ -466,7 +474,9 @@ done
 [[ $retries -eq i ]] && echo "Adding ssh-key to GitHub failed! Try again later."
 
 
-
+#############################################
+### Finish Up
+#############################################
 
 echo ""
 cecho "Done!" $cyan
